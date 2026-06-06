@@ -639,13 +639,13 @@ function spinSlot(){
   if(btn) btn.disabled = true;
   if(range) range.disabled = true;
   spinning = true;
-  const total = Math.max(denom * 2, 24) + stop;
-  let i = 0;
+  const total = Math.ceil(24 / denom) * denom + stop; // 周回はdenomの倍数→最終点灯マス=stopマス保証
+  const t0 = Date.now(); // 経過時間ベース: バックグラウンドタブのtimerスロットリングでも所要時間一定
   const tick = setInterval(() => {
+    const i = Math.min(total, Math.floor((Date.now() - t0) / 42));
     cells.forEach(c => c.classList.remove('lit'));
     cells[i % denom].classList.add('lit');
-    i++;
-    if(i > total){
+    if(i >= total){
       clearInterval(tick);
       spinning = false;
       if(stop === goldIdx) winStep('止まった——金マス');
