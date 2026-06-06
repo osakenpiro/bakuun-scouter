@@ -175,6 +175,21 @@ section.records{margin-top:26px}
 .graveyard{font-size:.6rem;color:var(--fg4);text-align:center;margin-top:10px}
 .reload-link{font-size:.6rem;color:var(--fg3);text-align:center;margin-top:8px;cursor:pointer;text-decoration:underline dotted}
 .reload-link:hover{color:var(--gold)}
+/* global ranking scope tabs (v1.3) */
+.gtabs{display:flex;gap:8px;justify-content:center;margin-bottom:10px}
+.gtab{font-family:inherit;font-size:.62rem;color:var(--fg2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:.32rem .9rem;cursor:pointer;transition:all .15s}
+.gtab:hover{border-color:var(--border-hover);color:var(--fg1)}
+.gtab.on{border-color:var(--gold);background:var(--gold-soft);color:var(--gold)}
+/* burst graveyard (v1.3) */
+.tomb{display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-bottom:1px dashed var(--border);font-size:.66rem;color:var(--fg2)}
+.tomb:last-child{border-bottom:none}
+.tomb .tn{color:var(--fg1)}
+.tomb .tp{color:#a05050;font-family:var(--mono);font-size:.62rem}
+.tomb .td{margin-left:auto;color:var(--fg4);font-size:.58rem;font-family:var(--mono)}
+/* bank full (v1.3) */
+.bank .fullmsg{font-size:.66rem;color:var(--gold);margin-top:6px}
+.gauge .fill.full{animation:fullpulse 2.4s ease-in-out infinite}
+@keyframes fullpulse{0%,100%{box-shadow:0 0 4px rgba(212,168,83,.3)}50%{box-shadow:0 0 16px rgba(212,168,83,.8)}}
 /* how to read */
 details{margin-top:22px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px}
 summary{font-size:.7rem;color:var(--fg2);cursor:pointer;letter-spacing:.08em}
@@ -241,6 +256,7 @@ footer{margin-top:34px;text-align:center}
   <div class="gauge"><div class="fill" id="bankFill" style="width:0%"></div></div>
   <div class="gauge-ends"><span>0.0</span><span>1.0</span></div>
   <div class="note">+0.2/日で蓄積、上限1.0（5日で満タン）。次の挑戦開始時に <span id="bankMult" style="color:var(--gold)">×1.00</span> として戦闘力に乗り、消費される。</div>
+  <div class="fullmsg" id="bankFull" style="display:none">🈵 満タン。運はこれ以上溜まらない——次の挑戦の初手に ×2.00 がすべて乗る。放つなら、今日だ。</div>
   <div class="welcome" id="bankWelcome" style="display:none"></div>
 </div>
 
@@ -266,10 +282,23 @@ footer{margin-top:34px;text-align:center}
 
 <section class="records">
   <div class="sec-label">Global — 全人類ランキング TOP20</div>
+  <div class="gtabs">
+    <button class="gtab on" id="gtabAll">🌍 全人類</button>
+    <button class="gtab" id="gtabToday">☀️ 今日</button>
+  </div>
   <div class="rec-list" id="globalList"></div>
   <div class="reload-link" id="globalReload">計測し直す</div>
-  <div class="graveyard">登録は確定時に任意。送られるのはハンドル名と記録値だけ。</div>
+  <div class="graveyard">登録は確定時に任意。送られるのはハンドル名と記録値だけ。「今日」は日本時間0時に仕切り直し——毎日、最初の挑戦者になれる。</div>
 </section>
+
+<details>
+  <summary>🪦 バーストの墓場 — 散った挑戦の供養</summary>
+  <div class="doc">
+    バーストは記録に残らない。ゼロ。——だが、忘れられはしない。ここは確定できなかった挑戦が眠る場所。
+    <div class="tomb-list" id="tombList" style="margin-top:10px"></div>
+    <div class="graveyard" id="tombFoot"></div>
+  </div>
+</details>
 
 <details>
   <summary>📡 計測値の読み方</summary>
@@ -331,7 +360,7 @@ footer{margin-top:34px;text-align:center}
 
 <script>
 'use strict';
-// ===== const ===== (v1.2: スロット確率設計/カード付きXシェア/denom対応)
+// ===== const ===== (v1.3: 今日の運ランキング/貯金v2 満タン・おかえり演出/バーストの墓場)
 const KEY = 'bakuun-scouter-v1';
 const BANK_RATE_PER_DAY = 0.2;
 const BANK_CAP = 1.0;
@@ -354,6 +383,7 @@ function freshData(){
     bank: { base: 0, lastAt: Date.now() },
     best: {},
     records: [],
+    bursts: [],
     totalBursts: 0,
     totalConfirms: 0,
     handle: ''
@@ -364,6 +394,7 @@ try { D = Object.assign(freshData(), JSON.parse(localStorage.getItem(KEY) || '{}
 catch(e){ D = freshData(); }
 if(!D.bank || typeof D.bank.lastAt !== 'number') D.bank = { base:0, lastAt: Date.now() };
 if(!Number.isInteger(D.slotDenom) || D.slotDenom < SLOT_MIN || D.slotDenom > SLOT_MAX) D.slotDenom = 8;
+if(!Array.isArray(D.bursts)) D.bursts = []; // v1.3移行: 既存ユーザーの過去バーストは「名もなき墓」
 
 let cur = 'coin';
 let streak = 0;
@@ -439,6 +470,9 @@ function renderBank(){
   $('bankVal').textContent = b.toFixed(3);
   $('bankFill').style.width = (b*100).toFixed(1) + '%';
   $('bankMult').textContent = '×' + (1+b).toFixed(2);
+  const full = b >= BANK_CAP - 1e-9;
+  $('bankFill').classList.toggle('full', full);
+  $('bankFull').style.display = full ? 'block' : 'none';
 }
 function renderTabs(){
   const t = $('tabs');
@@ -547,9 +581,33 @@ function renderRecords(){
   $('graveyard').textContent = D.totalBursts > 0
     ? 'これまでに散った挑戦: ' + D.totalBursts + '回（南無）' : '';
 }
-function renderAll(){ renderLens(); renderBank(); renderTabs(); renderPlay(); renderRecords(); }
+function renderGraveyard(){
+  const list = $('tombList');
+  if(!D.bursts.length){
+    list.innerHTML = '<div class="empty">墓はまだない。それは、挑戦がまだ浅いという意味でもある。</div>';
+  } else {
+    list.innerHTML = '';
+    D.bursts.slice(0, 20).forEach(b => {
+      const g = GAMES[b.g] || {icon:'?'};
+      const d = new Date(b.date);
+      const div = document.createElement('div');
+      div.className = 'tomb';
+      const lbl = b.denom ? g.icon + '1/' + b.denom : g.icon;
+      div.innerHTML = '🪦 <span class="tn">' + lbl + ' ' + b.n + '連で散る</span>'
+        + '<span class="tp">' + (b.n > 0 ? '幻の戦闘力 ' + fmtPower(b.power) : '初手で散った') + '</span>'
+        + '<span class="td">' + (d.getMonth()+1) + '/' + d.getDate() + '</span>';
+      list.appendChild(div);
+    });
+  }
+  const unnamed = D.totalBursts - D.bursts.length;
+  $('tombFoot').textContent = D.totalBursts > 0
+    ? '供養済み ' + D.totalBursts + ' 魂' + (unnamed > 0 ? '（うち ' + unnamed + ' 魂は名もなき墓に眠る）' : '') + ' — 南無'
+    : '';
+}
+function renderAll(){ renderLens(); renderBank(); renderTabs(); renderPlay(); renderRecords(); renderGraveyard(); }
 
 // ===== global ranking =====
+let gScope = 'all'; // v1.3: 'all' | 'today'（今日=JST、毎日仕切り直し）
 async function loadGlobal(){
   const box = $('globalList');
   if(!RANK_ENDPOINT){
@@ -558,11 +616,13 @@ async function loadGlobal(){
   }
   box.innerHTML = '<div class="empty">計測中…</div>';
   try{
-    const r = await fetch(RANK_ENDPOINT + '/top?limit=20');
+    const r = await fetch(RANK_ENDPOINT + '/top?limit=20' + (gScope === 'today' ? '&scope=today' : ''));
     const d = await r.json();
     if(!d.ok) throw 0;
     if(!d.top.length){
-      box.innerHTML = '<div class="empty">まだ誰も確定していない。最初の挑戦者になれ。</div>';
+      box.innerHTML = '<div class="empty">' + (gScope === 'today'
+        ? '今日はまだ誰も確定していない。今日の1位は、最初の挑戦者だ。'
+        : 'まだ誰も確定していない。最初の挑戦者になれ。') + '</div>';
       return;
     }
     box.innerHTML = '';
@@ -582,6 +642,14 @@ async function loadGlobal(){
   }
 }
 $('globalReload').onclick = loadGlobal;
+function setGScope(s){
+  gScope = s;
+  $('gtabAll').classList.toggle('on', s === 'all');
+  $('gtabToday').classList.toggle('on', s === 'today');
+  loadGlobal();
+}
+$('gtabAll').onclick = () => setGScope('all');
+$('gtabToday').onclick = () => setGScope('today');
 
 // ===== game flow =====
 function ensureRun(){
@@ -604,6 +672,8 @@ function burstStep(line){
   const lostStreak = streak;
   streak = 0; running = false; runMult = 1;
   D.totalBursts++;
+  D.bursts.unshift({ g: cur, n: lostStreak, power: lostStreak > 0 ? lostPower : 0, denom: cur === 'slot' ? D.slotDenom : undefined, date: Date.now() });
+  if(D.bursts.length > 50) D.bursts.length = 50;
   $('resultLine').innerHTML = line;
   $('burstPower').textContent = lostStreak > 0 ? '幻の戦闘力 ' + fmtPower(lostPower) : '戦闘力 0';
   $('burstDetail').innerHTML = lostStreak > 0
@@ -713,7 +783,8 @@ $('btnRegister').onclick = async () => {
     const d = await r.json();
     if(!d.ok) throw 0;
     D.handle = name; save();
-    $('regResult').innerHTML = (d.dup ? 'この記録は刻まれている。現在 全人類 <b>' : '刻んだ。現在 全人類 <b>') + d.rank + '位</b>（総勢 ' + d.total + ' 記録）';
+    $('regResult').innerHTML = (d.dup ? 'この記録は刻まれている。現在 全人類 <b>' : '刻んだ。現在 全人類 <b>') + d.rank + '位</b>（総勢 ' + d.total + ' 記録）'
+      + (d.trank ? '／☀️今日 <b>' + d.trank + '位</b>' : '');
     btn.textContent = '登録済み';
     loadGlobal();
   }catch(e){
@@ -838,22 +909,33 @@ document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => { if(e.target === o) closeOverlays(); });
 });
 
-// ===== welcome-back accrual message =====
-(function(){
+// ===== welcome-back accrual (v1.3: ゲージが満ちる演出つき) =====
+function welcomeBack(){
   const before = D.bank.base;
   const nowVal = bankNow();
   const gained = nowVal - before;
   const awayMs = Date.now() - D.bank.lastAt;
-  if(gained > 0.005 && awayMs > 6*3600*1000){
-    $('bankWelcome').style.display = 'block';
-    $('bankWelcome').textContent = 'おかえり。留守のあいだに運が +' + gained.toFixed(3) + ' 溜まっていた。';
-  }
-})();
+  if(gained <= 0.005 || awayMs <= 6*3600*1000) return;
+  const days = Math.floor(awayMs / 86400000);
+  const w = $('bankWelcome');
+  w.style.display = 'block';
+  w.textContent = nowVal >= BANK_CAP - 1e-9
+    ? '✨ おかえり' + (days >= 1 ? '、' + days + '日ぶり' : '') + '。貯金は満タンだ——今日が、放つ日だ。'
+    : '✨ おかえり。留守のあいだに運が +' + gained.toFixed(3) + ' 溜まっていた。';
+  const fill = $('bankFill'); // 留守前→現在へゲージが満ちる
+  fill.style.transition = 'none';
+  fill.style.width = (before*100).toFixed(1) + '%';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    fill.style.transition = 'width 1.4s cubic-bezier(.2,.7,.25,1)';
+    fill.style.width = (nowVal*100).toFixed(1) + '%';
+  }));
+}
 
 setInterval(renderBank, 30000);
 
 renderAll();
 loadGlobal();
+welcomeBack();
 </script>
 </body>
 </html>
