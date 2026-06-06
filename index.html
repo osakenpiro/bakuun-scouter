@@ -9,11 +9,14 @@
 <meta property="og:description" content="あなたの限界は、確率があなたに許した限界か？ 運力を戦闘力(1/pⁿ)とFloatで計測。放置で運が溜まる。">
 <meta property="og:url" content="https://osakenpiro.github.io/bakuun-scouter/">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://osakenpiro.github.io/bakuun-scouter/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://osakenpiro.github.io/bakuun-scouter/og.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%2308080e' stroke='%23d4a853' stroke-width='6'/%3E%3Ctext x='50' y='66' font-size='44' text-anchor='middle' fill='%23d4a853'%3E運%3C/text%3E%3C/svg%3E">
 <style>
 :root{
   --void:#08080e; --void-alt:#0a0a0f; --surface:#12121a; --surface2:#1a1a2a;
-  --border:#1e1e2a; --border-hover:#52525b;
+  --border:#1e1e2a; --border-hover:#52525b; --key-border:#2a2a3e;
   --fg1:#c8b8a0; --fg2:rgba(200,184,160,0.5); --fg3:rgba(200,184,160,0.35); --fg4:rgba(200,184,160,0.2);
   --dim:#3a3530;
   --gold:#d4a853; --gold-glow:rgba(212,168,83,0.3); --gold-soft:rgba(212,168,83,0.08);
@@ -33,11 +36,16 @@ body{
 @keyframes twinkle{0%,100%{opacity:.15}50%{opacity:.7}}
 .wrap{position:relative;z-index:1;max-width:580px;margin:0 auto;padding:28px 16px 60px}
 /* header */
-header{text-align:center;margin-bottom:18px}
+header{text-align:center;margin-bottom:6px}
 h1{font-size:1.7rem;font-weight:700;letter-spacing:.1em;color:var(--fg1)}
 h1 .baku{color:var(--gold)}
 .tagline{font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);margin-top:4px}
 .catch{font-family:var(--serif);font-style:italic;font-size:.78rem;color:var(--fg2);margin-top:10px;letter-spacing:.06em}
+/* hero key visual */
+.hero{margin:16px 0 0;border:1px solid var(--border);border-radius:12px;overflow:hidden;position:relative}
+.hero img{display:block;width:100%;height:auto}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,8,14,.05) 40%,rgba(8,8,14,.6) 100%);pointer-events:none}
+.hero .cap{position:absolute;right:10px;bottom:7px;z-index:1;font-size:.54rem;color:rgba(200,184,160,.45);letter-spacing:.12em}
 /* scouter lens */
 .lens{
   position:relative;margin:22px auto 8px;width:min(320px,86vw);height:min(320px,86vw);
@@ -110,13 +118,13 @@ h1 .baku{color:var(--gold)}
 /* overlay */
 .overlay{
   position:fixed;inset:0;z-index:50;background:rgba(8,8,14,.92);
-  display:none;align-items:center;justify-content:center;padding:20px;
+  display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto;
 }
 .overlay.show{display:flex}
 .panel{
-  max-width:420px;width:100%;background:var(--surface);border:1px solid var(--gold);
-  border-radius:12px;padding:28px 22px;text-align:center;
-  box-shadow:0 0 60px rgba(212,168,83,.15);
+  max-width:440px;width:100%;background:var(--surface);border:1px solid var(--gold);
+  border-radius:12px;padding:26px 22px;text-align:center;
+  box-shadow:0 0 60px rgba(212,168,83,.15);margin:auto;
 }
 .panel.burst-panel{border-color:#5a3030;box-shadow:0 0 60px rgba(120,40,40,.18)}
 .panel h2{font-size:1.1rem;letter-spacing:.2em;margin-bottom:12px}
@@ -130,11 +138,23 @@ h1 .baku{color:var(--gold)}
   padding:.5rem 1.4rem;border-radius:20px;font-size:.74rem;cursor:pointer;font-family:inherit;
 }
 .btn-gold:hover{background:rgba(212,168,83,.18)}
+.btn-gold:disabled{opacity:.45;pointer-events:none}
 .btn-dim{
   background:transparent;border:1px solid var(--border-hover);color:var(--fg2);
   padding:.5rem 1.4rem;border-radius:20px;font-size:.74rem;cursor:pointer;font-family:inherit;
 }
 .btn-dim:hover{color:var(--fg1)}
+/* ranking register */
+.regbox{margin-top:16px;padding-top:14px;border-top:1px dashed var(--key-border)}
+.regbox .rb-label{font-size:.64rem;color:var(--fg3);margin-bottom:8px}
+.regbox .rb-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.regbox input{
+  background:var(--surface2);border:1px solid var(--key-border);border-radius:8px;
+  color:var(--fg1);padding:.45rem .8rem;font-size:.78rem;font-family:inherit;width:170px;
+}
+.regbox input:focus{outline:none;border-color:var(--gold)}
+.reg-result{font-size:.76rem;color:var(--fg2);min-height:1.3em;margin-top:8px}
+.reg-result b{color:var(--gold)}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
 .shake{animation:shake .45s ease}
 /* records */
@@ -146,11 +166,15 @@ section.records{margin-top:26px}
   border:1px solid var(--border);border-radius:8px;padding:8px 12px;
   font-family:var(--mono);font-size:.7rem;color:var(--fg2);
 }
+.rec.mine{border-color:var(--gold)}
 .rec .rk{color:var(--dim);min-width:1.4em}
+.rec .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:9em}
 .rec .pw{color:var(--gold);font-size:.82rem}
 .rec .meta{margin-left:auto;color:var(--fg3);font-size:.6rem;text-align:right}
 .empty{font-size:.68rem;color:var(--fg3);text-align:center;padding:14px 0}
 .graveyard{font-size:.6rem;color:var(--fg4);text-align:center;margin-top:10px}
+.reload-link{font-size:.6rem;color:var(--fg3);text-align:center;margin-top:8px;cursor:pointer;text-decoration:underline dotted}
+.reload-link:hover{color:var(--gold)}
 /* how to read */
 details{margin-top:22px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px}
 summary{font-size:.7rem;color:var(--fg2);cursor:pointer;letter-spacing:.08em}
@@ -181,6 +205,11 @@ footer{margin-top:34px;text-align:center}
   <div class="tagline">LUCK SCOUTER — measure luck as a float</div>
   <div class="catch">「あなたの限界は、確率があなたに許した限界か？」</div>
 </header>
+
+<div class="hero">
+  <img src="hero.jpg" alt="提灯の下、賽の行方を待つ — ひとあかり">
+  <div class="cap">key visual: ひとあかり</div>
+</div>
 
 <div class="lens" id="lens">
   <div class="label">運 FLOAT</div>
@@ -218,6 +247,13 @@ footer{margin-top:34px;text-align:center}
   <div class="graveyard" id="graveyard"></div>
 </section>
 
+<section class="records">
+  <div class="sec-label">Global — 全人類ランキング TOP20</div>
+  <div class="rec-list" id="globalList"></div>
+  <div class="reload-link" id="globalReload">計測し直す</div>
+  <div class="graveyard">登録は確定時に任意。送られるのはハンドル名と記録値だけ。</div>
+</section>
+
 <details>
   <summary>📡 計測値の読み方</summary>
   <div class="doc">
@@ -226,7 +262,7 @@ footer{margin-top:34px;text-align:center}
     <b>運Float</b> = <code>1 − pⁿ</code>。ランダムな挑戦者があなたの記録に届かず散る確率。0.0から始まり1.0に漸近するが、<b>1.0は仕様として存在しない</b>。上は、まだある。<br>
     <b>バースト</b> = 記録に残らない。ゼロ。確定だけが記録になる。ヤメ時の判断＝欲望と理性の露出が、そのままスコアになる。<br>
     <b>戦闘力の正体</b>：確率の逆数は幾何分布の期待値。戦闘力1,024は「平均1,024回挑んでたまに届く」水準。多くの人は期待値あたりで止まる。そこを越える者だけが残る。<br>
-    記録はこの端末のブラウザ（localStorage）にだけ保存され、どこにも送信されない。全人類ランキングは構想中。
+    記録はこの端末のブラウザ（localStorage）に保存。<b>全人類ランキング</b>への登録は確定時に任意で、送信されるのはハンドル名と記録値のみ（端末情報なし）。
   </div>
 </details>
 
@@ -259,8 +295,17 @@ footer{margin-top:34px;text-align:center}
     <div class="detail" id="cfDetail"></div>
     <div class="phrase">ヤメ時を自分で決めた。それが記録になった。</div>
     <div class="actions">
-      <button class="btn-gold" id="btnShare">Xで計測結果を晒す</button>
+      <button class="btn-gold" id="btnCard">🖼 計測カードを保存</button>
+      <button class="btn-gold" id="btnShare">Xで晒す</button>
       <button class="btn-dim" onclick="closeOverlays()">閉じる</button>
+    </div>
+    <div class="regbox" id="regBox">
+      <div class="rb-label">🌍 この記録を全人類ランキングに刻むか（任意）</div>
+      <div class="rb-row">
+        <input id="handleInput" maxlength="20" placeholder="ハンドル名（20字まで）">
+        <button class="btn-gold" id="btnRegister">登録する</button>
+      </div>
+      <div class="reg-result" id="regResult"></div>
     </div>
   </div>
 </div>
@@ -271,6 +316,7 @@ footer{margin-top:34px;text-align:center}
 const KEY = 'bakuun-scouter-v1';
 const BANK_RATE_PER_DAY = 0.2;
 const BANK_CAP = 1.0;
+const RANK_ENDPOINT = 'https://bakuun-rank.kagami-osakenpiro.workers.dev'; // empty = ランキング準備中
 const GAMES = {
   coin: { icon:'🪙', name:'コインフリップ', p:1/2, faces:['表','裏'],
           q:'どちらが出る？', desc:'p = 1/2 — 安定して伸びる。1回 1.00 bit' },
@@ -284,10 +330,11 @@ const GAMES = {
 function freshData(){
   return {
     bank: { base: 0, lastAt: Date.now() },
-    best: {},                 // gameId -> {n, power, bit, mult, date}
-    records: [],              // confirmed records
+    best: {},
+    records: [],
     totalBursts: 0,
-    totalConfirms: 0
+    totalConfirms: 0,
+    handle: ''
   };
 }
 let D;
@@ -295,10 +342,10 @@ try { D = Object.assign(freshData(), JSON.parse(localStorage.getItem(KEY) || '{}
 catch(e){ D = freshData(); }
 if(!D.bank || typeof D.bank.lastAt !== 'number') D.bank = { base:0, lastAt: Date.now() };
 
-let cur = 'coin';      // selected game
-let streak = 0;        // current run streak
-let running = false;   // run in progress
-let runMult = 1;       // multiplier locked at run start
+let cur = 'coin';
+let streak = 0;
+let running = false;
+let runMult = 1;
 
 const save = () => localStorage.setItem(KEY, JSON.stringify(D));
 
@@ -307,11 +354,11 @@ function bankNow(){
   const elapsed = Math.max(0, Date.now() - D.bank.lastAt);
   return Math.min(BANK_CAP, D.bank.base + (elapsed / 86400000) * BANK_RATE_PER_DAY);
 }
-function touchBank(){ // restart accrual from now, keep value as base
+function touchBank(){
   D.bank.base = bankNow();
   D.bank.lastAt = Date.now();
 }
-function spendBank(){ // lock multiplier & empty the bank
+function spendBank(){
   const b = bankNow();
   const mult = 1 + b;
   D.bank.base = 0;
@@ -333,6 +380,7 @@ function fmtFloat(p, n){
   return f >= 0.99995 ? '0.9999…' : f.toFixed(4);
 }
 const pct = p => (p*100).toFixed(p < 0.2 ? 1 : 0) + '%';
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ===== stars =====
 (function(){
@@ -432,15 +480,48 @@ function renderRecords(){
 }
 function renderAll(){ renderLens(); renderBank(); renderTabs(); renderPlay(); renderRecords(); }
 
+// ===== global ranking =====
+async function loadGlobal(){
+  const box = $('globalList');
+  if(!RANK_ENDPOINT){
+    box.innerHTML = '<div class="empty">全人類ランキングは準備中。</div>';
+    return;
+  }
+  box.innerHTML = '<div class="empty">計測中…</div>';
+  try{
+    const r = await fetch(RANK_ENDPOINT + '/top?limit=20');
+    const d = await r.json();
+    if(!d.ok) throw 0;
+    if(!d.top.length){
+      box.innerHTML = '<div class="empty">まだ誰も確定していない。最初の挑戦者になれ。</div>';
+      return;
+    }
+    box.innerHTML = '';
+    d.top.forEach((t, i) => {
+      const g = GAMES[t.game] || {icon:'?'};
+      const div = document.createElement('div');
+      div.className = 'rec' + (D.handle && t.name === D.handle ? ' mine' : '');
+      div.innerHTML = '<span class="rk">' + (i+1) + '</span><span class="nm">' + esc(t.name) + '</span>'
+        + '<span>' + g.icon + t.n + '連</span>'
+        + '<span class="pw">' + fmtPower(t.power) + '</span>'
+        + '<span class="meta">' + t.bit.toFixed(2) + ' bit</span>';
+      box.appendChild(div);
+    });
+  }catch(e){
+    box.innerHTML = '<div class="empty">ランキング取得に失敗。電波の運が無かった。</div>';
+  }
+}
+$('globalReload').onclick = loadGlobal;
+
 // ===== game flow =====
 function challenge(pick){
   const g = GAMES[cur];
-  if(!running){              // run start: spend the bank
+  if(!running){
     runMult = spendBank();
     running = true;
     streak = 0;
   } else {
-    touchBank();             // accrual restarts from latest action
+    touchBank();
   }
   const hit = Math.floor(Math.random() * g.faces.length);
   const win = (pick === hit);
@@ -490,9 +571,102 @@ $('btnConfirm').onclick = () => {
   $('cfPower').textContent = '戦闘力 ' + fmtPower(rec.power);
   $('cfDetail').innerHTML = GAMES[rec.g].icon + ' ' + GAMES[rec.g].name + '　' + rec.n + '連続成功<br>'
     + '運Float ' + fmtFloat(GAMES[rec.g].p, rec.n) + '｜' + rec.bit.toFixed(2) + ' bit｜貯金倍率 ×' + rec.mult.toFixed(2);
+  // reset register box
+  if(RANK_ENDPOINT){
+    $('regBox').style.display = '';
+    $('btnRegister').disabled = false;
+    $('btnRegister').textContent = '登録する';
+    $('handleInput').value = D.handle || '';
+    $('regResult').textContent = '';
+  } else {
+    $('regBox').style.display = 'none';
+  }
   $('ovConfirm').classList.add('show');
   $('resultLine').textContent = '';
   renderAll();
+};
+
+// ===== ranking register =====
+$('btnRegister').onclick = async () => {
+  if(!lastRecord || !RANK_ENDPOINT) return;
+  const btn = $('btnRegister');
+  btn.disabled = true; btn.textContent = '登録中…';
+  const name = ($('handleInput').value.trim() || '名無しの挑戦者').slice(0, 20);
+  try{
+    const r = await fetch(RANK_ENDPOINT + '/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, game: lastRecord.g, n: lastRecord.n, mult: lastRecord.mult })
+    });
+    const d = await r.json();
+    if(!d.ok) throw 0;
+    D.handle = name; save();
+    $('regResult').innerHTML = '刻んだ。現在 全人類 <b>' + d.rank + '位</b>（総勢 ' + d.total + ' 記録）';
+    btn.textContent = '登録済み';
+    loadGlobal();
+  }catch(e){
+    btn.disabled = false; btn.textContent = '登録する';
+    $('regResult').textContent = '登録失敗。電波の運が無かった…もう一度。';
+  }
+};
+
+// ===== share card (canvas) =====
+const heroImg = new Image();
+heroImg.src = 'hero.jpg';
+function drawCard(rec, noImg){
+  const c = document.createElement('canvas');
+  c.width = 1200; c.height = 630;
+  const x = c.getContext('2d');
+  x.fillStyle = '#08080e'; x.fillRect(0, 0, 1200, 630);
+  if(!noImg && heroImg.complete && heroImg.naturalWidth){
+    x.globalAlpha = 0.5;
+    x.drawImage(heroImg, 0, -28, 1200, 686);
+    x.globalAlpha = 1;
+  }
+  const grad = x.createLinearGradient(0, 0, 0, 630);
+  grad.addColorStop(0, 'rgba(8,8,14,0.3)');
+  grad.addColorStop(1, 'rgba(8,8,14,0.93)');
+  x.fillStyle = grad; x.fillRect(0, 0, 1200, 630);
+  for(let i = 0; i < 60; i++){
+    x.fillStyle = 'rgba(200,184,160,' + (0.08 + Math.random() * 0.42) + ')';
+    const s = Math.random() * 2 + 0.5;
+    x.fillRect(Math.random() * 1200, Math.random() * 630, s, s);
+  }
+  const g = GAMES[rec.g];
+  const sans = '"Zen Kaku Gothic New","Yu Gothic UI",sans-serif';
+  x.textBaseline = 'top'; x.textAlign = 'left';
+  x.fillStyle = '#d4a853'; x.font = 'bold 30px ' + sans; x.fillText('バク運スカウター', 60, 50);
+  x.fillStyle = 'rgba(200,184,160,0.6)'; x.font = '19px ' + sans; x.fillText('LUCK SCOUTER — 計測結果', 62, 94);
+  x.fillStyle = '#d4a853'; x.font = 'bold 84px ' + sans; x.fillText('戦闘力 ' + fmtPower(rec.power), 56, 210);
+  x.fillStyle = '#c8b8a0'; x.font = '34px ' + sans; x.fillText(g.icon + ' ' + g.name + '　' + rec.n + '連続成功', 60, 332);
+  x.fillStyle = 'rgba(200,184,160,0.72)'; x.font = '25px ' + sans;
+  x.fillText('運Float ' + fmtFloat(g.p, rec.n) + ' ／ ' + rec.bit.toFixed(2) + ' bit ／ 貯金倍率 ×' + rec.mult.toFixed(2), 60, 394);
+  x.strokeStyle = '#d4a853'; x.lineWidth = 3;
+  x.beginPath(); x.arc(1020, 140, 88, 0, Math.PI * 2); x.stroke();
+  x.fillStyle = 'rgba(212,168,83,0.1)';
+  x.beginPath(); x.arc(1020, 140, 88, 0, Math.PI * 2); x.fill();
+  x.textAlign = 'center';
+  x.fillStyle = 'rgba(200,184,160,0.55)'; x.font = '15px ' + sans; x.fillText('運 FLOAT', 1020, 102);
+  x.fillStyle = '#d4a853'; x.font = 'bold 32px Consolas,monospace'; x.fillText(fmtFloat(g.p, rec.n), 1020, 128);
+  x.textAlign = 'left';
+  x.fillStyle = 'rgba(200,184,160,0.5)'; x.font = 'italic 25px ' + sans;
+  x.fillText('「あなたの限界は、確率があなたに許した限界か？」', 60, 498);
+  x.fillStyle = 'rgba(200,184,160,0.4)'; x.font = '20px Consolas,monospace';
+  x.fillText('osakenpiro.github.io/bakuun-scouter', 60, 556);
+  return c;
+}
+$('btnCard').onclick = () => {
+  if(!lastRecord) return;
+  let c;
+  try { c = drawCard(lastRecord, false); c.toDataURL(); }
+  catch(e){ c = drawCard(lastRecord, true); }
+  c.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'bakuun-' + Math.round(lastRecord.power) + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
 };
 
 $('btnShare').onclick = () => {
@@ -527,10 +701,10 @@ document.querySelectorAll('.overlay').forEach(o => {
   }
 })();
 
-// bank gauge ticks up live
 setInterval(renderBank, 30000);
 
 renderAll();
+loadGlobal();
 </script>
 </body>
 </html>
