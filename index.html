@@ -190,14 +190,31 @@ footer{margin-top:34px;text-align:center}
 .credit{font-size:.56rem;color:var(--fg4);margin-top:8px}
 .credit a{color:var(--fg3);text-decoration:none}
 .credit a:hover{color:var(--gold)}
+/* slot (v1.2) */
+.tabs{flex-wrap:wrap}
+.tab{min-width:116px}
+.faces.slot-col{flex-direction:column;align-items:center}
+.slot-design{display:flex;gap:10px;align-items:center;justify-content:center;font-size:.68rem;color:var(--fg2)}
+.slot-design input[type=range]{width:min(220px,52vw);accent-color:var(--gold)}
+.slot-design b{font-family:var(--mono);color:var(--gold);font-size:.85rem;min-width:3em;text-align:left}
+.reel{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;margin:12px 0 4px;max-width:420px}
+.reel .cell{width:15px;height:24px;border:1px solid var(--key-border);border-radius:3px;background:var(--surface2);transition:background .05s}
+.reel .cell.gold{background:var(--gold-soft);border-color:var(--gold);box-shadow:0 0 6px rgba(212,168,83,.25)}
+.reel .cell.lit{background:var(--gold);border-color:var(--gold)}
+.slot-note{font-size:.6rem;color:var(--fg3);margin-top:6px}
+/* toast (v1.2) */
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--gold);color:var(--fg1);padding:.6rem 1.1rem;border-radius:10px;font-size:.7rem;z-index:99;opacity:0;transition:opacity .3s;pointer-events:none;max-width:88vw;text-align:center}
+#toast.show{opacity:1}
 @media (max-width:420px){
   .lens .float-val{font-size:2rem}
   .face{min-width:52px;padding:12px 8px}
+  .tab{min-width:100px}
 }
 </style>
 </head>
 <body>
 <div id="stars"></div>
+<div id="toast"></div>
 <div class="wrap">
 
 <header>
@@ -261,6 +278,7 @@ footer{margin-top:34px;text-align:center}
     <b>bit</b> = <code>n × log₂(1/p)</code>。底の違うゲーム同士を公平に比べる情報量。貯金倍率は乗らない純粋値。<br>
     <b>運Float</b> = <code>1 − pⁿ</code>。ランダムな挑戦者があなたの記録に届かず散る確率。0.0から始まり1.0に漸近するが、<b>1.0は仕様として存在しない</b>。上は、まだある。<br>
     <b>バースト</b> = 記録に残らない。ゼロ。確定だけが記録になる。ヤメ時の判断＝欲望と理性の露出が、そのままスコアになる。<br>
+    <b>スロット設計台</b> = 確率そのものを <code>1/3〜1/20</code> で自分で設計するモード。マス数=分母。じゃんけん級（1/3）から狂気（1/20）まで連続的に難易度が変わる——確率設計も、Boolean でなく Float。<br>
     <b>戦闘力の正体</b>：確率の逆数は幾何分布の期待値。戦闘力1,024は「平均1,024回挑んでたまに届く」水準。多くの人は期待値あたりで止まる。そこを越える者だけが残る。<br>
     記録はこの端末のブラウザ（localStorage）に保存。<b>全人類ランキング</b>への登録は確定時に任意で、送信されるのはハンドル名と記録値のみ（端末情報なし）。
   </div>
@@ -295,8 +313,9 @@ footer{margin-top:34px;text-align:center}
     <div class="detail" id="cfDetail"></div>
     <div class="phrase">ヤメ時を自分で決めた。それが記録になった。</div>
     <div class="actions">
-      <button class="btn-gold" id="btnCard">🖼 計測カードを保存</button>
-      <button class="btn-gold" id="btnShare">Xで晒す</button>
+      <button class="btn-gold" id="btnXCard">📡 カードを連れてXへ</button>
+      <button class="btn-gold" id="btnCard">🖼 保存</button>
+      <button class="btn-dim" id="btnShare">文字だけでXへ</button>
       <button class="btn-dim" onclick="closeOverlays()">閉じる</button>
     </div>
     <div class="regbox" id="regBox">
@@ -312,7 +331,7 @@ footer{margin-top:34px;text-align:center}
 
 <script>
 'use strict';
-// ===== const =====
+// ===== const ===== (v1.2: スロット確率設計/カード付きXシェア/denom対応)
 const KEY = 'bakuun-scouter-v1';
 const BANK_RATE_PER_DAY = 0.2;
 const BANK_CAP = 1.0;
@@ -323,8 +342,11 @@ const GAMES = {
   card: { icon:'🃏', name:'三枚のカード', p:1/3, faces:['左','中','右'],
           q:'当たりはどこだ？', desc:'p = 1/3 — 中庸。1回 1.58 bit' },
   dice: { icon:'🎲', name:'サイコロ一点読み', p:1/6, faces:['1','2','3','4','5','6'],
-          q:'出目を一点読みしろ', desc:'p = 1/6 — 狂気の高倍率。1回 2.58 bit' }
+          q:'出目を一点読みしろ', desc:'p = 1/6 — 狂気の高倍率。1回 2.58 bit' },
+  slot: { icon:'🎰', name:'スロット設計台', p:null, custom:true, faces:[],
+          q:'確率を、自分で設計しろ', desc:'p = 1/n — 難易度はあなたが決める' }
 };
+const SLOT_MIN = 3, SLOT_MAX = 20; // 確率設計レンジ（じゃんけん級1/3〜狂気1/20、中間pもここでカバー）
 
 // ===== state =====
 function freshData(){
@@ -341,6 +363,7 @@ let D;
 try { D = Object.assign(freshData(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
 catch(e){ D = freshData(); }
 if(!D.bank || typeof D.bank.lastAt !== 'number') D.bank = { base:0, lastAt: Date.now() };
+if(!Number.isInteger(D.slotDenom) || D.slotDenom < SLOT_MIN || D.slotDenom > SLOT_MAX) D.slotDenom = 8;
 
 let cur = 'coin';
 let streak = 0;
@@ -369,6 +392,9 @@ function spendBank(){
 // ===== math / fmt =====
 const powerOf = (p, n) => Math.pow(1/p, n);
 const bitOf = (p, n) => n * Math.log2(1/p);
+const curP = () => GAMES[cur].custom ? 1 / D.slotDenom : GAMES[cur].p;   // 現在モードのp（スロットは設計値）
+const recP = r => r.denom ? 1 / r.denom : GAMES[r.g].p;                  // 記録のp（denom持ち=スロット）
+const recName = r => GAMES[r.g].name + (r.denom ? '（1/' + r.denom + '）' : '');
 function fmtPower(x){
   if(!isFinite(x)) return '∞';
   if(x >= 1e12) return x.toExponential(2).replace('e+', '×10^');
@@ -399,9 +425,10 @@ const $ = id => document.getElementById(id);
 
 function renderLens(){
   const g = GAMES[cur];
-  $('lensFloat').textContent = fmtFloat(g.p, streak);
-  $('lensPower').textContent = '戦闘力 ' + fmtPower(streak ? powerOf(g.p, streak) * runMult : 0);
-  $('lensBit').textContent = bitOf(g.p, streak).toFixed(2) + ' bit' + (running && runMult > 1 ? '｜×' + runMult.toFixed(2) : '');
+  const p = curP();
+  $('lensFloat').textContent = fmtFloat(p, streak);
+  $('lensPower').textContent = '戦闘力 ' + fmtPower(streak ? powerOf(p, streak) * runMult : 0);
+  $('lensBit').textContent = bitOf(p, streak).toFixed(2) + ' bit' + (running && runMult > 1 ? '｜×' + runMult.toFixed(2) : '');
   $('lensStreak').innerHTML = running
     ? g.icon + ' <b>' + streak + '</b> 連続成功中'
     : '挑戦待機中 — 1回でも外せばゼロ';
@@ -421,8 +448,9 @@ function renderTabs(){
     const d = document.createElement('div');
     d.className = 'tab' + (id === cur ? ' on' : '') + (running && id !== cur ? ' locked' : '');
     const best = D.best[id];
+    const pr = g.custom ? 'p = 1/' + D.slotDenom : g.desc.split('—')[0].trim();
     d.innerHTML = '<div class="ico">' + g.icon + '</div><div class="nm">' + g.name + '</div>'
-      + '<div class="pr">' + g.desc.split('—')[0].trim() + '</div>'
+      + '<div class="pr">' + pr + '</div>'
       + '<div class="bst">' + (best ? '最高 ' + fmtPower(best.power) : '') + '</div>';
     d.onclick = () => { if(running) return; cur = id; renderAll(); };
     t.appendChild(d);
@@ -431,28 +459,68 @@ function renderTabs(){
 function renderPlay(){
   const g = GAMES[cur];
   $('playQ').textContent = g.icon + ' ' + g.name + ' — ' + g.q;
-  $('playOdds').textContent = g.desc;
+  $('playOdds').textContent = g.custom
+    ? 'p = 1/' + D.slotDenom + ' — 1回 ' + Math.log2(D.slotDenom).toFixed(2) + ' bit。マスは増やせる。狂気も。'
+    : g.desc;
   const f = $('faces');
   f.innerHTML = '';
-  g.faces.forEach((face, i) => {
-    const b = document.createElement('button');
-    b.className = 'face';
-    b.textContent = face;
-    b.onclick = () => challenge(i);
-    f.appendChild(b);
-  });
+  f.classList.toggle('slot-col', !!g.custom);
+  if(g.custom){
+    buildSlotUI(f);
+  } else {
+    g.faces.forEach((face, i) => {
+      const b = document.createElement('button');
+      b.className = 'face';
+      b.textContent = face;
+      b.onclick = () => challenge(i);
+      f.appendChild(b);
+    });
+  }
   renderDecision();
 }
+function buildSlotUI(f){
+  const design = document.createElement('div');
+  design.className = 'slot-design';
+  design.innerHTML = '<span>確率設計</span>'
+    + '<input type="range" id="slotRange" min="' + SLOT_MIN + '" max="' + SLOT_MAX + '" value="' + D.slotDenom + '"' + (running ? ' disabled' : '') + '>'
+    + '<b id="slotPLabel">1/' + D.slotDenom + '</b>';
+  f.appendChild(design);
+  const reel = document.createElement('div');
+  reel.className = 'reel'; reel.id = 'reel';
+  const goldIdx = Math.floor(D.slotDenom / 2);
+  for(let i = 0; i < D.slotDenom; i++){
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (i === goldIdx ? ' gold' : '');
+    reel.appendChild(cell);
+  }
+  f.appendChild(reel);
+  const b = document.createElement('button');
+  b.className = 'face'; b.id = 'btnSpin';
+  b.textContent = running ? '回す（' + (streak+1) + '連目へ）' : '回す';
+  b.onclick = spinSlot;
+  f.appendChild(b);
+  const note = document.createElement('div');
+  note.className = 'slot-note';
+  note.textContent = running ? '設計は挑戦中ロック。確定かバーストで解放。' : '金マスに止まれば的中。マス数=確率の分母。挑戦中は変更不可。';
+  f.appendChild(note);
+  const range = document.getElementById('slotRange');
+  range.oninput = e => { document.getElementById('slotPLabel').textContent = '1/' + e.target.value; };
+  range.onchange = e => {
+    if(running) return;
+    D.slotDenom = +e.target.value; save();
+    renderPlay(); renderTabs(); renderLens();
+  };
+}
 function renderDecision(){
-  const g = GAMES[cur];
   const dec = $('decision');
+  const p = curP();
   if(running && streak > 0){
     dec.classList.add('show');
-    const now = fmtPower(powerOf(g.p, streak) * runMult);
-    const next = fmtPower(powerOf(g.p, streak+1) * runMult);
+    const now = fmtPower(powerOf(p, streak) * runMult);
+    const next = fmtPower(powerOf(p, streak+1) * runMult);
     $('tensionLine').innerHTML =
-      '勝てば ' + now + ' → <span style="color:var(--gold)">' + next + '</span>（確率 ' + pct(g.p) + '）／'
-      + '外せば <span class="zero">0</span>（確率 ' + pct(1-g.p) + '）';
+      '勝てば ' + now + ' → <span style="color:var(--gold)">' + next + '</span>（確率 ' + pct(p) + '）／'
+      + '外せば <span class="zero">0</span>（確率 ' + pct(1-p) + '）';
   } else {
     dec.classList.remove('show');
   }
@@ -469,7 +537,8 @@ function renderRecords(){
       const d = new Date(r.date);
       const div = document.createElement('div');
       div.className = 'rec';
-      div.innerHTML = '<span class="rk">' + (i+1) + '</span><span>' + g.icon + ' ' + r.n + '連</span>'
+      const lbl = r.denom ? g.icon + '1/' + r.denom + ' ' + r.n + '連' : g.icon + ' ' + r.n + '連';
+      div.innerHTML = '<span class="rk">' + (i+1) + '</span><span>' + lbl + '</span>'
         + '<span class="pw">' + fmtPower(r.power) + '</span>'
         + '<span class="meta">' + r.bit.toFixed(2) + ' bit｜×' + r.mult.toFixed(2) + '<br>' + (d.getMonth()+1) + '/' + d.getDate() + '</span>';
       list.appendChild(div);
@@ -501,8 +570,9 @@ async function loadGlobal(){
       const g = GAMES[t.game] || {icon:'?'};
       const div = document.createElement('div');
       div.className = 'rec' + (D.handle && t.name === D.handle ? ' mine' : '');
+      const lbl = t.denom ? g.icon + '1/' + t.denom + ' ' + t.n + '連' : g.icon + t.n + '連';
       div.innerHTML = '<span class="rk">' + (i+1) + '</span><span class="nm">' + esc(t.name) + '</span>'
-        + '<span>' + g.icon + t.n + '連</span>'
+        + '<span>' + lbl + '</span>'
         + '<span class="pw">' + fmtPower(t.power) + '</span>'
         + '<span class="meta">' + t.bit.toFixed(2) + ' bit</span>';
       box.appendChild(div);
@@ -514,8 +584,7 @@ async function loadGlobal(){
 $('globalReload').onclick = loadGlobal;
 
 // ===== game flow =====
-function challenge(pick){
-  const g = GAMES[cur];
+function ensureRun(){
   if(!running){
     runMult = spendBank();
     running = true;
@@ -523,42 +592,80 @@ function challenge(pick){
   } else {
     touchBank();
   }
-  const hit = Math.floor(Math.random() * g.faces.length);
-  const win = (pick === hit);
-  const revealed = g.faces[hit];
-  if(win){
-    streak++;
-    $('resultLine').innerHTML = '<span class="win">的中。「' + revealed + '」（' + streak + '連目）</span>';
-  } else {
-    const lostPower = powerOf(g.p, streak) * runMult;
-    const lostStreak = streak;
-    streak = 0; running = false; runMult = 1;
-    D.totalBursts++;
-    $('resultLine').innerHTML = '外れ。正解は「' + revealed + '」';
-    $('burstPower').textContent = lostStreak > 0 ? '幻の戦闘力 ' + fmtPower(lostPower) : '戦闘力 0';
-    $('burstDetail').innerHTML = lostStreak > 0
-      ? lostStreak + '連まで来ていた。確定していれば残っていた。'
-      : '初手で散った。運の貯金だけが消えた。';
-    $('ovBurst').classList.add('show');
-    document.querySelector('#ovBurst .panel').classList.remove('shake');
-    void document.querySelector('#ovBurst .panel').offsetWidth;
-    document.querySelector('#ovBurst .panel').classList.add('shake');
-  }
+}
+function winStep(label){
+  streak++;
+  $('resultLine').innerHTML = '<span class="win">' + label + '（' + streak + '連目）</span>';
   save();
   renderAll();
+}
+function burstStep(line){
+  const lostPower = powerOf(curP(), streak) * runMult;
+  const lostStreak = streak;
+  streak = 0; running = false; runMult = 1;
+  D.totalBursts++;
+  $('resultLine').innerHTML = line;
+  $('burstPower').textContent = lostStreak > 0 ? '幻の戦闘力 ' + fmtPower(lostPower) : '戦闘力 0';
+  $('burstDetail').innerHTML = lostStreak > 0
+    ? lostStreak + '連まで来ていた。確定していれば残っていた。'
+    : '初手で散った。運の貯金だけが消えた。';
+  $('ovBurst').classList.add('show');
+  document.querySelector('#ovBurst .panel').classList.remove('shake');
+  void document.querySelector('#ovBurst .panel').offsetWidth;
+  document.querySelector('#ovBurst .panel').classList.add('shake');
+  save();
+  renderAll();
+}
+function challenge(pick){
+  const g = GAMES[cur];
+  ensureRun();
+  const hit = Math.floor(Math.random() * g.faces.length);
+  const revealed = g.faces[hit];
+  if(pick === hit) winStep('的中。「' + revealed + '」');
+  else burstStep('外れ。正解は「' + revealed + '」');
+}
+// slot: 確率設計スピン（v1.2）
+let spinning = false;
+function spinSlot(){
+  if(spinning) return;
+  ensureRun();
+  renderTabs(); // 走行開始でタブロック反映
+  const denom = D.slotDenom;
+  const goldIdx = Math.floor(denom / 2);
+  const stop = Math.floor(Math.random() * denom);
+  const cells = document.querySelectorAll('#reel .cell');
+  const btn = document.getElementById('btnSpin');
+  const range = document.getElementById('slotRange');
+  if(btn) btn.disabled = true;
+  if(range) range.disabled = true;
+  spinning = true;
+  const total = Math.max(denom * 2, 24) + stop;
+  let i = 0;
+  const tick = setInterval(() => {
+    cells.forEach(c => c.classList.remove('lit'));
+    cells[i % denom].classList.add('lit');
+    i++;
+    if(i > total){
+      clearInterval(tick);
+      spinning = false;
+      if(stop === goldIdx) winStep('止まった——金マス');
+      else burstStep('リールは ' + (stop+1) + ' 番で停止。金マス（' + (goldIdx+1) + ' 番）には届かなかった');
+    }
+  }, 42);
 }
 
 let lastRecord = null;
 $('btnConfirm').onclick = () => {
   if(!running || streak < 1) return;
-  const g = GAMES[cur];
+  const p = curP();
   const rec = {
     g: cur, n: streak,
-    power: powerOf(g.p, streak) * runMult,
-    bit: bitOf(g.p, streak),
+    power: powerOf(p, streak) * runMult,
+    bit: bitOf(p, streak),
     mult: runMult,
     date: Date.now()
   };
+  if(cur === 'slot') rec.denom = D.slotDenom;
   D.records.push(rec);
   D.records.sort((a,b) => b.power - a.power);
   D.records = D.records.slice(0, 30);
@@ -569,8 +676,8 @@ $('btnConfirm').onclick = () => {
   streak = 0; running = false; runMult = 1;
   save();
   $('cfPower').textContent = '戦闘力 ' + fmtPower(rec.power);
-  $('cfDetail').innerHTML = GAMES[rec.g].icon + ' ' + GAMES[rec.g].name + '　' + rec.n + '連続成功<br>'
-    + '運Float ' + fmtFloat(GAMES[rec.g].p, rec.n) + '｜' + rec.bit.toFixed(2) + ' bit｜貯金倍率 ×' + rec.mult.toFixed(2);
+  $('cfDetail').innerHTML = GAMES[rec.g].icon + ' ' + recName(rec) + '　' + rec.n + '連続成功<br>'
+    + '運Float ' + fmtFloat(recP(rec), rec.n) + '｜' + rec.bit.toFixed(2) + ' bit｜貯金倍率 ×' + rec.mult.toFixed(2);
   // reset register box
   if(RANK_ENDPOINT){
     $('regBox').style.display = '';
@@ -596,12 +703,17 @@ $('btnRegister').onclick = async () => {
     const r = await fetch(RANK_ENDPOINT + '/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, game: lastRecord.g, n: lastRecord.n, mult: lastRecord.mult })
+      body: JSON.stringify({ name: name, game: lastRecord.g, n: lastRecord.n, mult: lastRecord.mult, denom: lastRecord.denom })
     });
+    if(r.status === 429){
+      $('regResult').textContent = '今日はもう十分刻んだ。運を溜めて、また明日。';
+      btn.textContent = '登録する'; btn.disabled = false;
+      return;
+    }
     const d = await r.json();
     if(!d.ok) throw 0;
     D.handle = name; save();
-    $('regResult').innerHTML = '刻んだ。現在 全人類 <b>' + d.rank + '位</b>（総勢 ' + d.total + ' 記録）';
+    $('regResult').innerHTML = (d.dup ? 'この記録は刻まれている。現在 全人類 <b>' : '刻んだ。現在 全人類 <b>') + d.rank + '位</b>（総勢 ' + d.total + ' 記録）';
     btn.textContent = '登録済み';
     loadGlobal();
   }catch(e){
@@ -638,16 +750,16 @@ function drawCard(rec, noImg){
   x.fillStyle = '#d4a853'; x.font = 'bold 30px ' + sans; x.fillText('バク運スカウター', 60, 50);
   x.fillStyle = 'rgba(200,184,160,0.6)'; x.font = '19px ' + sans; x.fillText('LUCK SCOUTER — 計測結果', 62, 94);
   x.fillStyle = '#d4a853'; x.font = 'bold 84px ' + sans; x.fillText('戦闘力 ' + fmtPower(rec.power), 56, 210);
-  x.fillStyle = '#c8b8a0'; x.font = '34px ' + sans; x.fillText(g.icon + ' ' + g.name + '　' + rec.n + '連続成功', 60, 332);
+  x.fillStyle = '#c8b8a0'; x.font = '34px ' + sans; x.fillText(g.icon + ' ' + recName(rec) + '　' + rec.n + '連続成功', 60, 332);
   x.fillStyle = 'rgba(200,184,160,0.72)'; x.font = '25px ' + sans;
-  x.fillText('運Float ' + fmtFloat(g.p, rec.n) + ' ／ ' + rec.bit.toFixed(2) + ' bit ／ 貯金倍率 ×' + rec.mult.toFixed(2), 60, 394);
+  x.fillText('運Float ' + fmtFloat(recP(rec), rec.n) + ' ／ ' + rec.bit.toFixed(2) + ' bit ／ 貯金倍率 ×' + rec.mult.toFixed(2), 60, 394);
   x.strokeStyle = '#d4a853'; x.lineWidth = 3;
   x.beginPath(); x.arc(1020, 140, 88, 0, Math.PI * 2); x.stroke();
   x.fillStyle = 'rgba(212,168,83,0.1)';
   x.beginPath(); x.arc(1020, 140, 88, 0, Math.PI * 2); x.fill();
   x.textAlign = 'center';
   x.fillStyle = 'rgba(200,184,160,0.55)'; x.font = '15px ' + sans; x.fillText('運 FLOAT', 1020, 102);
-  x.fillStyle = '#d4a853'; x.font = 'bold 32px Consolas,monospace'; x.fillText(fmtFloat(g.p, rec.n), 1020, 128);
+  x.fillStyle = '#d4a853'; x.font = 'bold 32px Consolas,monospace'; x.fillText(fmtFloat(recP(rec), rec.n), 1020, 128);
   x.textAlign = 'left';
   x.fillStyle = 'rgba(200,184,160,0.5)'; x.font = 'italic 25px ' + sans;
   x.fillText('「あなたの限界は、確率があなたに許した限界か？」', 60, 498);
@@ -655,29 +767,66 @@ function drawCard(rec, noImg){
   x.fillText('osakenpiro.github.io/bakuun-scouter', 60, 556);
   return c;
 }
-$('btnCard').onclick = () => {
-  if(!lastRecord) return;
-  let c;
-  try { c = drawCard(lastRecord, false); c.toDataURL(); }
-  catch(e){ c = drawCard(lastRecord, true); }
-  c.toBlob(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = 'bakuun-' + Math.round(lastRecord.power) + '.png';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+const SITE_URL = 'https://osakenpiro.github.io/bakuun-scouter/';
+function shareText(rec){
+  const g = GAMES[rec.g];
+  return '【バク運スカウター】計測結果\n'
+    + g.icon + ' ' + recName(rec) + ' ' + rec.n + '連続成功\n'
+    + '戦闘力 ' + fmtPower(rec.power) + '（×' + rec.mult.toFixed(2) + '）／運Float ' + fmtFloat(recP(rec), rec.n) + '／' + rec.bit.toFixed(2) + ' bit\n'
+    + 'あなたの限界は、確率があなたに許した限界か？\n#バク運スカウター #全人類UX改善計画\n';
+}
+function cardBlob(rec){
+  return new Promise(resolve => {
+    let c;
+    try { c = drawCard(rec, false); c.toDataURL(); }
+    catch(e){ c = drawCard(rec, true); }
+    c.toBlob(resolve, 'image/png');
   });
+}
+let toastTimer = null;
+function toast(msg, ms){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms || 4200);
+}
+$('btnCard').onclick = async () => {
+  if(!lastRecord) return;
+  const b = await cardBlob(lastRecord);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'bakuun-' + Math.round(lastRecord.power) + '.png';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 };
-
+// v1.2: カード付きでXへ — モバイル=Web Share(画像直添付)/デスクトップ=クリップボード+intent
+$('btnXCard').onclick = async () => {
+  if(!lastRecord) return;
+  const blob = await cardBlob(lastRecord);
+  const text = shareText(lastRecord);
+  const file = new File([blob], 'bakuun-card.png', { type: 'image/png' });
+  if(navigator.canShare && navigator.canShare({ files: [file] })){
+    try {
+      await navigator.share({ files: [file], text: text + SITE_URL });
+      return;
+    } catch(e){
+      if(e && e.name === 'AbortError') return; // ユーザーが閉じた
+    }
+  }
+  let copied = false;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    copied = true;
+  } catch(e){}
+  window.open('https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(SITE_URL), '_blank');
+  toast(copied
+    ? '計測カードはコピー済み——投稿画面で Ctrl+V（⌘V）すると画像が付く。'
+    : 'カードの自動コピーに失敗。「カードを保存」から手動添付を。');
+};
 $('btnShare').onclick = () => {
   if(!lastRecord) return;
-  const g = GAMES[lastRecord.g];
-  const text = '【バク運スカウター】計測結果\n'
-    + g.icon + ' ' + g.name + ' ' + lastRecord.n + '連続成功\n'
-    + '戦闘力 ' + fmtPower(lastRecord.power) + '（×' + lastRecord.mult.toFixed(2) + '）／運Float ' + fmtFloat(g.p, lastRecord.n) + '／' + lastRecord.bit.toFixed(2) + ' bit\n'
-    + 'あなたの限界は、確率があなたに許した限界か？\n#バク運スカウター #全人類UX改善計画\n';
-  const url = 'https://osakenpiro.github.io/bakuun-scouter/';
-  window.open('https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url), '_blank');
+  window.open('https://x.com/intent/post?text=' + encodeURIComponent(shareText(lastRecord)) + '&url=' + encodeURIComponent(SITE_URL), '_blank');
 };
 
 function closeOverlays(){
