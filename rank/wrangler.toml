@@ -1,0 +1,9 @@
+name = "bakuun-rank"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bakuun-rank"
+database_id = "b7b66cb6-0b1c-4931-9f55-657744ad9037"
+
