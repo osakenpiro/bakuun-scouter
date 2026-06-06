@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS records (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_power ON records(power DESC);
+-- v1.3: 今日の運ランキング(JST日次スコープ)用
+CREATE INDEX IF NOT EXISTS idx_created ON records(created_at);
 -- v1.2: IP rate-limit 用（ハッシュ済IP + ts、24hで自動掃除）
 CREATE TABLE IF NOT EXISTS rl (
   key TEXT NOT NULL,
