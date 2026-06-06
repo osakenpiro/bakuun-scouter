@@ -1,7 +1,8 @@
-// bakuun-rank — バク運スカウター 全人類ランキング Worker (D1) v1.2
-// Endpoints: GET /top?limit=50 / POST /submit {name, game, n, mult, denom?}
+// bakuun-rank — バク運スカウター 全人類ランキング Worker (D1) v1.3
+// Endpoints: GET /top?limit=50&scope=all|today / POST /submit {name, game, n, mult, denom?}
 // 戦闘力はサーバ側で再計算（クライアント値は信用しない）。bit=純粋値。
 // v1.2: スロット(denom 3-20) / IP rate-limit(6/min, 60/day) / 重複submit抑制(10min) / 名前NGフィルタ
+// v1.3: 今日の運ランキング — JST日次スコープ。/top?scope=today + submitがtrank/ttotal(今日順位)を返す
 const BASES = { coin: 2, card: 3, dice: 6 };
 const SLOT_MIN = 3, SLOT_MAX = 20;
 const FALLBACK_NAME = '名無しの挑戦者';
@@ -9,6 +10,8 @@ const FALLBACK_NAME = '名無しの挑戦者';
 const NG_RE = /(https?:\/\/|www\.|\.(com|net|org|io|jp|xyz)\b|死ね|殺す|殺せ|レイプ|f[u*]ck|n[i1]gger|nazi|cunt)/i;
 const RL_MIN_MAX = 6;    // 同一IP 1分あたり
 const RL_DAY_MAX = 60;   // 同一IP 24hあたり
+const JST_MS = 9 * 3600000; // 「今日」はJST基準（日本時間0時に仕切り直し）
+const jstDayStart = now => Math.floor((now + JST_MS) / 86400000) * 86400000 - JST_MS;
 
 export default {
   async fetch(req, env) {
@@ -22,10 +25,12 @@ export default {
     try {
       if (req.method === 'GET' && url.pathname === '/top') {
         const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50', 10) || 50);
+        const today = url.searchParams.get('scope') === 'today';
+        const since = today ? jstDayStart(Date.now()) : 0;
         const { results } = await env.DB.prepare(
-          'SELECT name, game, n, mult, power, bit, denom, created_at FROM records ORDER BY power DESC, created_at ASC LIMIT ?'
-        ).bind(limit).all();
-        return json({ ok: true, top: results }, cors);
+          'SELECT name, game, n, mult, power, bit, denom, created_at FROM records WHERE created_at >= ? ORDER BY power DESC, created_at ASC LIMIT ?'
+        ).bind(since, limit).all();
+        return json({ ok: true, scope: today ? 'today' : 'all', top: results }, cors);
       }
       if (req.method === 'POST' && url.pathname === '/submit') {
         const b = await req.json();
@@ -76,7 +81,10 @@ export default {
         }
         const r = await env.DB.prepare('SELECT COUNT(*) AS c FROM records WHERE power > ?').bind(power).first();
         const t = await env.DB.prepare('SELECT COUNT(*) AS c FROM records').first();
-        return json({ ok: true, rank: Number(r.c) + 1, total: Number(t.c), dup: !!dup }, cors);
+        const since = jstDayStart(now);
+        const tr = await env.DB.prepare('SELECT COUNT(*) AS c FROM records WHERE power > ? AND created_at >= ?').bind(power, since).first();
+        const tt = await env.DB.prepare('SELECT COUNT(*) AS c FROM records WHERE created_at >= ?').bind(since).first();
+        return json({ ok: true, rank: Number(r.c) + 1, total: Number(t.c), trank: Number(tr.c) + 1, ttotal: Number(tt.c), dup: !!dup }, cors);
       }
       return json({ ok: false, err: 'not found' }, cors, 404);
     } catch (e) {
