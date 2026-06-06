@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>バク運スカウター — 運力計測器</title>
+<meta name="description" content="運をBooleanでなくFloatで計測するスカウター。連勝の戦闘力=確率の逆数。ヤメ時はあなたが決める。遊ばない日々に運が溜まる。">
+<meta property="og:title" content="バク運スカウター">
+<meta property="og:description" content="あなたの限界は、確率があなたに許した限界か？ 運力を戦闘力(1/pⁿ)とFloatで計測。放置で運が溜まる。">
+<meta property="og:url" content="https://osakenpiro.github.io/bakuun-scouter/">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%2308080e' stroke='%23d4a853' stroke-width='6'/%3E%3Ctext x='50' y='66' font-size='44' text-anchor='middle' fill='%23d4a853'%3E運%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --void:#08080e; --void-alt:#0a0a0f; --surface:#12121a; --surface2:#1a1a2a;
+  --border:#1e1e2a; --border-hover:#52525b;
+  --fg1:#c8b8a0; --fg2:rgba(200,184,160,0.5); --fg3:rgba(200,184,160,0.35); --fg4:rgba(200,184,160,0.2);
+  --dim:#3a3530;
+  --gold:#d4a853; --gold-glow:rgba(212,168,83,0.3); --gold-soft:rgba(212,168,83,0.08);
+  --sans:'Zen Kaku Gothic New','Yu Gothic UI','Segoe UI',sans-serif;
+  --serif:'Cormorant Garamond','Times New Roman',serif;
+  --mono:'Consolas','Yu Gothic UI',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans); background:var(--void); color:var(--fg1);
+  line-height:1.6; min-height:100vh; overflow-x:hidden;
+}
+/* stars */
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+.star{position:absolute;background:#c8b8a0;border-radius:50%;animation:twinkle 4s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.15}50%{opacity:.7}}
+.wrap{position:relative;z-index:1;max-width:580px;margin:0 auto;padding:28px 16px 60px}
+/* header */
+header{text-align:center;margin-bottom:18px}
+h1{font-size:1.7rem;font-weight:700;letter-spacing:.1em;color:var(--fg1)}
+h1 .baku{color:var(--gold)}
+.tagline{font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);margin-top:4px}
+.catch{font-family:var(--serif);font-style:italic;font-size:.78rem;color:var(--fg2);margin-top:10px;letter-spacing:.06em}
+/* scouter lens */
+.lens{
+  position:relative;margin:22px auto 8px;width:min(320px,86vw);height:min(320px,86vw);
+  border-radius:50%;border:2px solid var(--gold);
+  background:radial-gradient(circle at 50% 42%,#101018 0%,var(--void-alt) 70%);
+  box-shadow:0 0 40px rgba(212,168,83,.08),0 0 80px rgba(212,168,83,.03),inset 0 0 30px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+}
+.lens::before,.lens::after{content:"";position:absolute;background:var(--gold-glow)}
+.lens::before{width:1px;height:14px;top:6px;left:50%}
+.lens::after{width:14px;height:1px;left:6px;top:50%}
+.lens.live{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(212,168,83,.08),inset 0 0 30px rgba(0,0,0,.5)}50%{box-shadow:0 0 60px rgba(212,168,83,.22),inset 0 0 30px rgba(0,0,0,.5)}}
+.lens .label{font-size:.6rem;letter-spacing:.25em;color:var(--dim);text-transform:uppercase}
+.lens .float-val{font-family:var(--mono);font-size:2.5rem;color:var(--gold);line-height:1.15;margin:2px 0}
+.lens .power{font-family:var(--mono);font-size:1.02rem;color:var(--fg1)}
+.lens .sub{font-family:var(--mono);font-size:.7rem;color:var(--fg2);margin-top:4px}
+.lens .streak-chip{margin-top:8px;font-size:.66rem;letter-spacing:.15em;color:var(--fg2)}
+.lens .streak-chip b{color:var(--gold);font-size:.9rem}
+/* bank */
+.bank{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:18px 0}
+.bank .row{display:flex;justify-content:space-between;align-items:baseline;font-size:.72rem;color:var(--fg2)}
+.bank .row b{font-family:var(--mono);color:var(--gold);font-size:.95rem}
+.gauge{position:relative;height:8px;background:var(--surface2);border-radius:4px;margin:8px 0 4px;overflow:hidden}
+.gauge .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(212,168,83,.45),var(--gold));border-radius:4px;transition:width .6s ease}
+.gauge-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.58rem;color:var(--dim)}
+.bank .note{font-size:.62rem;color:var(--fg3);margin-top:6px}
+.bank .welcome{font-size:.66rem;color:var(--gold);margin-top:6px}
+/* tabs */
+.tabs{display:flex;gap:8px;margin:18px 0 12px}
+.tab{
+  flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:10px 6px;text-align:center;cursor:pointer;transition:border-color .3s,transform .3s;
+}
+.tab:hover{border-color:var(--border-hover);transform:translateY(-2px)}
+.tab.on{border-color:var(--gold);background:var(--gold-soft)}
+.tab.locked{opacity:.35;pointer-events:none}
+.tab .ico{font-size:1.3rem}
+.tab .nm{font-size:.64rem;margin-top:2px}
+.tab .pr{font-family:var(--mono);font-size:.56rem;color:var(--fg3)}
+.tab .bst{font-family:var(--mono);font-size:.56rem;color:var(--gold);margin-top:2px;min-height:.8em}
+/* play area */
+.play{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 16px;text-align:center}
+.play .q{font-size:.8rem;color:var(--fg1);margin-bottom:4px}
+.play .odds-desc{font-size:.62rem;color:var(--fg3);margin-bottom:12px}
+.faces{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.face{
+  min-width:64px;padding:14px 12px;font-size:1.05rem;font-family:inherit;
+  background:transparent;border:1px solid var(--gold);color:var(--gold);
+  border-radius:12px;cursor:pointer;letter-spacing:.05em;
+  transition:background .2s,transform .2s,box-shadow .2s;
+}
+.face:hover{background:var(--gold-soft);transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.face:active{transform:translateY(0)}
+.face:disabled{opacity:.3;pointer-events:none}
+.result-line{min-height:1.7em;margin:12px 0 2px;font-size:.86rem}
+.result-line .win{color:var(--gold)}
+/* decision */
+.decision{margin-top:10px;display:none}
+.decision.show{display:block}
+.decision .tension{font-family:var(--mono);font-size:.68rem;color:var(--fg2);margin-bottom:10px}
+.decision .tension .zero{color:#8a5a5a}
+.btn-confirm{
+  background:transparent;border:1px solid var(--border-hover);color:var(--fg1);
+  padding:.5rem 1.6rem;border-radius:20px;font-size:.74rem;letter-spacing:.1em;
+  cursor:pointer;font-family:inherit;transition:border-color .3s,color .2s;
+}
+.btn-confirm:hover{border-color:var(--gold);color:var(--gold)}
+.hint-continue{font-size:.62rem;color:var(--fg3);margin-top:8px}
+/* overlay */
+.overlay{
+  position:fixed;inset:0;z-index:50;background:rgba(8,8,14,.92);
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+.overlay.show{display:flex}
+.panel{
+  max-width:420px;width:100%;background:var(--surface);border:1px solid var(--gold);
+  border-radius:12px;padding:28px 22px;text-align:center;
+  box-shadow:0 0 60px rgba(212,168,83,.15);
+}
+.panel.burst-panel{border-color:#5a3030;box-shadow:0 0 60px rgba(120,40,40,.18)}
+.panel h2{font-size:1.1rem;letter-spacing:.2em;margin-bottom:12px}
+.panel .big{font-family:var(--mono);font-size:1.9rem;color:var(--gold);margin:6px 0}
+.panel .burst-big{font-family:var(--mono);font-size:1.9rem;color:#a05050;margin:6px 0}
+.panel .detail{font-family:var(--mono);font-size:.74rem;color:var(--fg2);line-height:1.9}
+.panel .phrase{font-family:var(--serif);font-style:italic;font-size:.74rem;color:var(--fg3);margin:14px 0}
+.panel .actions{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.btn-gold{
+  background:var(--gold-soft);border:1px solid var(--gold);color:var(--gold);
+  padding:.5rem 1.4rem;border-radius:20px;font-size:.74rem;cursor:pointer;font-family:inherit;
+}
+.btn-gold:hover{background:rgba(212,168,83,.18)}
+.btn-dim{
+  background:transparent;border:1px solid var(--border-hover);color:var(--fg2);
+  padding:.5rem 1.4rem;border-radius:20px;font-size:.74rem;cursor:pointer;font-family:inherit;
+}
+.btn-dim:hover{color:var(--fg1)}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.shake{animation:shake .45s ease}
+/* records */
+section.records{margin-top:26px}
+.sec-label{font-family:var(--serif);font-size:.66rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;text-align:center}
+.rec-list{display:flex;flex-direction:column;gap:6px}
+.rec{
+  display:flex;align-items:baseline;gap:10px;background:var(--surface);
+  border:1px solid var(--border);border-radius:8px;padding:8px 12px;
+  font-family:var(--mono);font-size:.7rem;color:var(--fg2);
+}
+.rec .rk{color:var(--dim);min-width:1.4em}
+.rec .pw{color:var(--gold);font-size:.82rem}
+.rec .meta{margin-left:auto;color:var(--fg3);font-size:.6rem;text-align:right}
+.empty{font-size:.68rem;color:var(--fg3);text-align:center;padding:14px 0}
+.graveyard{font-size:.6rem;color:var(--fg4);text-align:center;margin-top:10px}
+/* how to read */
+details{margin-top:22px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px}
+summary{font-size:.7rem;color:var(--fg2);cursor:pointer;letter-spacing:.08em}
+details .doc{font-size:.66rem;color:var(--fg3);line-height:1.9;margin-top:8px}
+details .doc b{color:var(--fg1);font-weight:400}
+details .doc code{font-family:var(--mono);color:var(--gold);font-size:.66rem}
+/* footer */
+footer{margin-top:34px;text-align:center}
+.philo{font-size:.64rem;color:var(--fg3);line-height:2;max-width:460px;margin:0 auto}
+.philo .beef{color:var(--fg2)}
+.philo a{color:var(--gold);text-decoration:none}
+.manifesto{font-family:var(--serif);font-size:.58rem;font-style:italic;color:var(--fg4);letter-spacing:.1em;margin-top:16px}
+.credit{font-size:.56rem;color:var(--fg4);margin-top:8px}
+.credit a{color:var(--fg3);text-decoration:none}
+.credit a:hover{color:var(--gold)}
+@media (max-width:420px){
+  .lens .float-val{font-size:2rem}
+  .face{min-width:52px;padding:12px 8px}
+}
+</style>
+</head>
+<body>
+<div id="stars"></div>
+<div class="wrap">
+
+<header>
+  <h1><span class="baku">バク運</span>スカウター</h1>
+  <div class="tagline">LUCK SCOUTER — measure luck as a float</div>
+  <div class="catch">「あなたの限界は、確率があなたに許した限界か？」</div>
+</header>
+
+<div class="lens" id="lens">
+  <div class="label">運 FLOAT</div>
+  <div class="float-val" id="lensFloat">—</div>
+  <div class="power" id="lensPower">戦闘力 0</div>
+  <div class="sub" id="lensBit">0.00 bit</div>
+  <div class="streak-chip" id="lensStreak">挑戦待機中</div>
+</div>
+
+<div class="bank">
+  <div class="row"><span>🏦 運の貯金 <span style="opacity:.6">— 遊ばない日々に溜まる</span></span><b id="bankVal">0.000</b></div>
+  <div class="gauge"><div class="fill" id="bankFill" style="width:0%"></div></div>
+  <div class="gauge-ends"><span>0.0</span><span>1.0</span></div>
+  <div class="note">+0.2/日で蓄積、上限1.0（5日で満タン）。次の挑戦開始時に <span id="bankMult" style="color:var(--gold)">×1.00</span> として戦闘力に乗り、消費される。</div>
+  <div class="welcome" id="bankWelcome" style="display:none"></div>
+</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="play">
+  <div class="q" id="playQ"></div>
+  <div class="odds-desc" id="playOdds"></div>
+  <div class="faces" id="faces"></div>
+  <div class="result-line" id="resultLine"></div>
+  <div class="decision" id="decision">
+    <div class="tension" id="tensionLine"></div>
+    <button class="btn-confirm" id="btnConfirm">ヤメて、この記録を確定する</button>
+    <div class="hint-continue">…それとも、上のボタンでもう一度挑むか。</div>
+  </div>
+</div>
+
+<section class="records">
+  <div class="sec-label">Confirmed Records — 確定記録</div>
+  <div class="rec-list" id="recList"></div>
+  <div class="graveyard" id="graveyard"></div>
+</section>
+
+<details>
+  <summary>📡 計測値の読み方</summary>
+  <div class="doc">
+    <b>戦闘力</b> = <code>(1/p)ⁿ × 貯金倍率</code>。成功確率pのゲームでn連続成功した希少さを確率の逆数で表す派手な数値。1/2で10連勝なら1,024。<br>
+    <b>bit</b> = <code>n × log₂(1/p)</code>。底の違うゲーム同士を公平に比べる情報量。貯金倍率は乗らない純粋値。<br>
+    <b>運Float</b> = <code>1 − pⁿ</code>。ランダムな挑戦者があなたの記録に届かず散る確率。0.0から始まり1.0に漸近するが、<b>1.0は仕様として存在しない</b>。上は、まだある。<br>
+    <b>バースト</b> = 記録に残らない。ゼロ。確定だけが記録になる。ヤメ時の判断＝欲望と理性の露出が、そのままスコアになる。<br>
+    <b>戦闘力の正体</b>：確率の逆数は幾何分布の期待値。戦闘力1,024は「平均1,024回挑んでたまに届く」水準。多くの人は期待値あたりで止まる。そこを越える者だけが残る。<br>
+    記録はこの端末のブラウザ（localStorage）にだけ保存され、どこにも送信されない。全人類ランキングは構想中。
+  </div>
+</details>
+
+<footer>
+  <div class="philo">
+    <span class="beef">運を「勝った／負けた」のBooleanで葬らない。0.0と1.0のあいだの連続値で観測する——<a href="https://osakenpiro.github.io/" target="_blank" rel="noopener">Boolean→Float計画</a>の運力計測器。</span><br>
+    姉妹企画 🎲<b>ドラコロバトル</b>（ボードゲーム・育成中）と、運哲学<em>「運ゲーは理不尽でも、運も欲しい」</em>を共有しています。
+  </div>
+  <div class="manifesto">solve your own problem, publish it, and the UX of all humankind improves.</div>
+  <div class="credit">#全人類UX改善計画 — <a href="https://osakenpiro.github.io/" target="_blank" rel="noopener">osakenpiro</a></div>
+</footer>
+
+</div>
+
+<!-- overlays -->
+<div class="overlay" id="ovBurst">
+  <div class="panel burst-panel">
+    <h2 style="color:#a05050">BURST — 計測不能</h2>
+    <div class="burst-big" id="burstPower"></div>
+    <div class="detail" id="burstDetail"></div>
+    <div class="phrase">バーストは記録に残らない。ゼロ。<br>だが運の貯金は、今日からまた溜まりはじめる。</div>
+    <div class="actions"><button class="btn-dim" onclick="closeOverlays()">灰を払う</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="ovConfirm">
+  <div class="panel">
+    <h2 style="color:var(--gold)">計測完了</h2>
+    <div class="big" id="cfPower"></div>
+    <div class="detail" id="cfDetail"></div>
+    <div class="phrase">ヤメ時を自分で決めた。それが記録になった。</div>
+    <div class="actions">
+      <button class="btn-gold" id="btnShare">Xで計測結果を晒す</button>
+      <button class="btn-dim" onclick="closeOverlays()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ===== const =====
+const KEY = 'bakuun-scouter-v1';
+const BANK_RATE_PER_DAY = 0.2;
+const BANK_CAP = 1.0;
+const GAMES = {
+  coin: { icon:'🪙', name:'コインフリップ', p:1/2, faces:['表','裏'],
+          q:'どちらが出る？', desc:'p = 1/2 — 安定して伸びる。1回 1.00 bit' },
+  card: { icon:'🃏', name:'三枚のカード', p:1/3, faces:['左','中','右'],
+          q:'当たりはどこだ？', desc:'p = 1/3 — 中庸。1回 1.58 bit' },
+  dice: { icon:'🎲', name:'サイコロ一点読み', p:1/6, faces:['1','2','3','4','5','6'],
+          q:'出目を一点読みしろ', desc:'p = 1/6 — 狂気の高倍率。1回 2.58 bit' }
+};
+
+// ===== state =====
+function freshData(){
+  return {
+    bank: { base: 0, lastAt: Date.now() },
+    best: {},                 // gameId -> {n, power, bit, mult, date}
+    records: [],              // confirmed records
+    totalBursts: 0,
+    totalConfirms: 0
+  };
+}
+let D;
+try { D = Object.assign(freshData(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
+catch(e){ D = freshData(); }
+if(!D.bank || typeof D.bank.lastAt !== 'number') D.bank = { base:0, lastAt: Date.now() };
+
+let cur = 'coin';      // selected game
+let streak = 0;        // current run streak
+let running = false;   // run in progress
+let runMult = 1;       // multiplier locked at run start
+
+const save = () => localStorage.setItem(KEY, JSON.stringify(D));
+
+// ===== bank =====
+function bankNow(){
+  const elapsed = Math.max(0, Date.now() - D.bank.lastAt);
+  return Math.min(BANK_CAP, D.bank.base + (elapsed / 86400000) * BANK_RATE_PER_DAY);
+}
+function touchBank(){ // restart accrual from now, keep value as base
+  D.bank.base = bankNow();
+  D.bank.lastAt = Date.now();
+}
+function spendBank(){ // lock multiplier & empty the bank
+  const b = bankNow();
+  const mult = 1 + b;
+  D.bank.base = 0;
+  D.bank.lastAt = Date.now();
+  return Math.round(mult * 100) / 100;
+}
+
+// ===== math / fmt =====
+const powerOf = (p, n) => Math.pow(1/p, n);
+const bitOf = (p, n) => n * Math.log2(1/p);
+function fmtPower(x){
+  if(!isFinite(x)) return '∞';
+  if(x >= 1e12) return x.toExponential(2).replace('e+', '×10^');
+  return Math.round(x).toLocaleString('ja-JP');
+}
+function fmtFloat(p, n){
+  if(n === 0) return '—';
+  const f = 1 - Math.pow(p, n);
+  return f >= 0.99995 ? '0.9999…' : f.toFixed(4);
+}
+const pct = p => (p*100).toFixed(p < 0.2 ? 1 : 0) + '%';
+
+// ===== stars =====
+(function(){
+  const c = document.getElementById('stars');
+  for(let i=0;i<70;i++){
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random()*1.8 + 0.4;
+    s.style.cssText = 'width:'+sz+'px;height:'+sz+'px;left:'+(Math.random()*100)+'%;top:'+(Math.random()*100)+'%;animation-delay:'+(Math.random()*4)+'s;animation-duration:'+(3+Math.random()*4)+'s';
+    c.appendChild(s);
+  }
+})();
+
+// ===== render =====
+const $ = id => document.getElementById(id);
+
+function renderLens(){
+  const g = GAMES[cur];
+  $('lensFloat').textContent = fmtFloat(g.p, streak);
+  $('lensPower').textContent = '戦闘力 ' + fmtPower(streak ? powerOf(g.p, streak) * runMult : 0);
+  $('lensBit').textContent = bitOf(g.p, streak).toFixed(2) + ' bit' + (running && runMult > 1 ? '｜×' + runMult.toFixed(2) : '');
+  $('lensStreak').innerHTML = running
+    ? g.icon + ' <b>' + streak + '</b> 連続成功中'
+    : '挑戦待機中 — 1回でも外せばゼロ';
+  $('lens').classList.toggle('live', running);
+}
+function renderBank(){
+  const b = bankNow();
+  $('bankVal').textContent = b.toFixed(3);
+  $('bankFill').style.width = (b*100).toFixed(1) + '%';
+  $('bankMult').textContent = '×' + (1+b).toFixed(2);
+}
+function renderTabs(){
+  const t = $('tabs');
+  t.innerHTML = '';
+  for(const id in GAMES){
+    const g = GAMES[id];
+    const d = document.createElement('div');
+    d.className = 'tab' + (id === cur ? ' on' : '') + (running && id !== cur ? ' locked' : '');
+    const best = D.best[id];
+    d.innerHTML = '<div class="ico">' + g.icon + '</div><div class="nm">' + g.name + '</div>'
+      + '<div class="pr">' + g.desc.split('—')[0].trim() + '</div>'
+      + '<div class="bst">' + (best ? '最高 ' + fmtPower(best.power) : '') + '</div>';
+    d.onclick = () => { if(running) return; cur = id; renderAll(); };
+    t.appendChild(d);
+  }
+}
+function renderPlay(){
+  const g = GAMES[cur];
+  $('playQ').textContent = g.icon + ' ' + g.name + ' — ' + g.q;
+  $('playOdds').textContent = g.desc;
+  const f = $('faces');
+  f.innerHTML = '';
+  g.faces.forEach((face, i) => {
+    const b = document.createElement('button');
+    b.className = 'face';
+    b.textContent = face;
+    b.onclick = () => challenge(i);
+    f.appendChild(b);
+  });
+  renderDecision();
+}
+function renderDecision(){
+  const g = GAMES[cur];
+  const dec = $('decision');
+  if(running && streak > 0){
+    dec.classList.add('show');
+    const now = fmtPower(powerOf(g.p, streak) * runMult);
+    const next = fmtPower(powerOf(g.p, streak+1) * runMult);
+    $('tensionLine').innerHTML =
+      '勝てば ' + now + ' → <span style="color:var(--gold)">' + next + '</span>（確率 ' + pct(g.p) + '）／'
+      + '外せば <span class="zero">0</span>（確率 ' + pct(1-g.p) + '）';
+  } else {
+    dec.classList.remove('show');
+  }
+}
+function renderRecords(){
+  const list = $('recList');
+  const recs = [...D.records].sort((a,b) => b.power - a.power).slice(0, 10);
+  list.innerHTML = '';
+  if(!recs.length){
+    list.innerHTML = '<div class="empty">確定記録はまだない。バーストは記録に残らない——確定だけが、残る。</div>';
+  } else {
+    recs.forEach((r, i) => {
+      const g = GAMES[r.g] || {icon:'?'};
+      const d = new Date(r.date);
+      const div = document.createElement('div');
+      div.className = 'rec';
+      div.innerHTML = '<span class="rk">' + (i+1) + '</span><span>' + g.icon + ' ' + r.n + '連</span>'
+        + '<span class="pw">' + fmtPower(r.power) + '</span>'
+        + '<span class="meta">' + r.bit.toFixed(2) + ' bit｜×' + r.mult.toFixed(2) + '<br>' + (d.getMonth()+1) + '/' + d.getDate() + '</span>';
+      list.appendChild(div);
+    });
+  }
+  $('graveyard').textContent = D.totalBursts > 0
+    ? 'これまでに散った挑戦: ' + D.totalBursts + '回（南無）' : '';
+}
+function renderAll(){ renderLens(); renderBank(); renderTabs(); renderPlay(); renderRecords(); }
+
+// ===== game flow =====
+function challenge(pick){
+  const g = GAMES[cur];
+  if(!running){              // run start: spend the bank
+    runMult = spendBank();
+    running = true;
+    streak = 0;
+  } else {
+    touchBank();             // accrual restarts from latest action
+  }
+  const hit = Math.floor(Math.random() * g.faces.length);
+  const win = (pick === hit);
+  const revealed = g.faces[hit];
+  if(win){
+    streak++;
+    $('resultLine').innerHTML = '<span class="win">的中。「' + revealed + '」（' + streak + '連目）</span>';
+  } else {
+    const lostPower = powerOf(g.p, streak) * runMult;
+    const lostStreak = streak;
+    streak = 0; running = false; runMult = 1;
+    D.totalBursts++;
+    $('resultLine').innerHTML = '外れ。正解は「' + revealed + '」';
+    $('burstPower').textContent = lostStreak > 0 ? '幻の戦闘力 ' + fmtPower(lostPower) : '戦闘力 0';
+    $('burstDetail').innerHTML = lostStreak > 0
+      ? lostStreak + '連まで来ていた。確定していれば残っていた。'
+      : '初手で散った。運の貯金だけが消えた。';
+    $('ovBurst').classList.add('show');
+    document.querySelector('#ovBurst .panel').classList.remove('shake');
+    void document.querySelector('#ovBurst .panel').offsetWidth;
+    document.querySelector('#ovBurst .panel').classList.add('shake');
+  }
+  save();
+  renderAll();
+}
+
+let lastRecord = null;
+$('btnConfirm').onclick = () => {
+  if(!running || streak < 1) return;
+  const g = GAMES[cur];
+  const rec = {
+    g: cur, n: streak,
+    power: powerOf(g.p, streak) * runMult,
+    bit: bitOf(g.p, streak),
+    mult: runMult,
+    date: Date.now()
+  };
+  D.records.push(rec);
+  D.records.sort((a,b) => b.power - a.power);
+  D.records = D.records.slice(0, 30);
+  if(!D.best[cur] || rec.power > D.best[cur].power) D.best[cur] = rec;
+  D.totalConfirms++;
+  lastRecord = rec;
+  touchBank();
+  streak = 0; running = false; runMult = 1;
+  save();
+  $('cfPower').textContent = '戦闘力 ' + fmtPower(rec.power);
+  $('cfDetail').innerHTML = GAMES[rec.g].icon + ' ' + GAMES[rec.g].name + '　' + rec.n + '連続成功<br>'
+    + '運Float ' + fmtFloat(GAMES[rec.g].p, rec.n) + '｜' + rec.bit.toFixed(2) + ' bit｜貯金倍率 ×' + rec.mult.toFixed(2);
+  $('ovConfirm').classList.add('show');
+  $('resultLine').textContent = '';
+  renderAll();
+};
+
+$('btnShare').onclick = () => {
+  if(!lastRecord) return;
+  const g = GAMES[lastRecord.g];
+  const text = '【バク運スカウター】計測結果\n'
+    + g.icon + ' ' + g.name + ' ' + lastRecord.n + '連続成功\n'
+    + '戦闘力 ' + fmtPower(lastRecord.power) + '（×' + lastRecord.mult.toFixed(2) + '）／運Float ' + fmtFloat(g.p, lastRecord.n) + '／' + lastRecord.bit.toFixed(2) + ' bit\n'
+    + 'あなたの限界は、確率があなたに許した限界か？\n#バク運スカウター #全人類UX改善計画\n';
+  const url = 'https://osakenpiro.github.io/bakuun-scouter/';
+  window.open('https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url), '_blank');
+};
+
+function closeOverlays(){
+  document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show'));
+  $('resultLine').textContent = '';
+  renderAll();
+}
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if(e.target === o) closeOverlays(); });
+});
+
+// ===== welcome-back accrual message =====
+(function(){
+  const before = D.bank.base;
+  const nowVal = bankNow();
+  const gained = nowVal - before;
+  const awayMs = Date.now() - D.bank.lastAt;
+  if(gained > 0.005 && awayMs > 6*3600*1000){
+    $('bankWelcome').style.display = 'block';
+    $('bankWelcome').textContent = 'おかえり。留守のあいだに運が +' + gained.toFixed(3) + ' 溜まっていた。';
+  }
+})();
+
+// bank gauge ticks up live
+setInterval(renderBank, 30000);
+
+renderAll();
+</script>
+</body>
+</html>
