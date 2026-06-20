@@ -115,6 +115,16 @@ h1 .baku{color:var(--gold)}
 }
 .btn-confirm:hover{border-color:var(--gold);color:var(--gold)}
 .hint-continue{font-size:.62rem;color:var(--fg3);margin-top:8px}
+/* decision insight v1.3 — martingale confession + 狂気度メーター */
+.madmeter{margin:0 0 11px}
+.madmeter .mm-top{display:flex;justify-content:space-between;align-items:baseline;font-size:.58rem;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+.madmeter .mm-top b{font-family:var(--mono);font-size:.82rem;letter-spacing:.04em}
+.madmeter .mm-bar{position:relative;height:6px;border-radius:4px;background:rgba(200,184,160,.08);overflow:hidden;margin:5px 0 4px}
+.madmeter .mm-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:4px;transition:width .5s ease,background .5s ease}
+.madmeter .mm-note{font-family:var(--mono);font-size:.58rem;color:var(--fg3)}
+.decision .martingale{font-family:var(--mono);font-size:.64rem;color:var(--fg2);line-height:1.7;margin-bottom:12px;padding:9px 11px;border:1px dashed var(--key-border);border-radius:8px}
+.decision .martingale b{color:var(--gold);font-style:normal}
+.decision .martingale .silent{display:inline-block;margin-top:3px;color:var(--fg3);font-style:italic;font-family:var(--serif);font-size:.82rem;letter-spacing:.03em}
 /* overlay */
 .overlay{
   position:fixed;inset:0;z-index:50;background:rgba(8,8,14,.92);
@@ -269,6 +279,12 @@ footer{margin-top:34px;text-align:center}
   <div class="result-line" id="resultLine"></div>
   <div class="decision" id="decision">
     <div class="tension" id="tensionLine"></div>
+    <div class="madmeter" id="madMeter">
+      <div class="mm-top"><span>狂気度</span><b id="madVal"></b></div>
+      <div class="mm-bar"><div class="mm-fill" id="madFill"></div></div>
+      <div class="mm-note" id="madNote"></div>
+    </div>
+    <div class="martingale" id="martLine"></div>
     <button class="btn-confirm" id="btnConfirm">ヤメて、この記録を確定する</button>
     <div class="hint-continue">…それとも、上のボタンでもう一度挑むか。</div>
   </div>
@@ -309,6 +325,7 @@ footer{margin-top:34px;text-align:center}
     <b>バースト</b> = 記録に残らない。ゼロ。確定だけが記録になる。ヤメ時の判断＝欲望と理性の露出が、そのままスコアになる。<br>
     <b>スロット設計台</b> = 確率そのものを <code>1/3〜1/20</code> で自分で設計するモード。マス数=分母。じゃんけん級（1/3）から狂気（1/20）まで連続的に難易度が変わる——確率設計も、Boolean でなく Float。<br>
     <b>戦闘力の正体</b>：確率の逆数は幾何分布の期待値。戦闘力1,024は「平均1,024回挑んでたまに届く」水準。多くの人は期待値あたりで止まる。そこを越える者だけが残る。<br>
+    <b>やめ時の正体（v1.3）</b>：もう1手進めても期待戦闘力は今と変わらない（勝率 p × 倍率 1/p ＝ 1倍）。完全な<b>マルチンゲール</b>——数学は「続けろ」とも「やめろ」とも言わない。だから挑戦中に出る<b>狂気度＝1−pⁿ</b>は、確率が許した範囲をどれだけ踏み越えたかの目盛りであって、助言ではない。常人→強気→狂気→真の狂人の帯は、連続値を質に翻訳しただけ。判断はいつでも、あなたの欲望に返ってくる。<br>
     記録はこの端末のブラウザ（localStorage）に保存。<b>全人類ランキング</b>への登録は確定時に任意で、送信されるのはハンドル名と記録値のみ（端末情報なし）。
   </div>
 </details>
@@ -545,16 +562,38 @@ function buildSlotUI(f){
     renderPlay(); renderTabs(); renderLens();
   };
 }
+// 狂気度の帯 — 連続値(到達Float)を質的バンドに（個別最適の規格化）
+function madBand(f){
+  if(f < 0.5)  return { label:'常人',    color:'#6f6a60' };
+  if(f < 0.9)  return { label:'強気',    color:'#b89a55' };
+  if(f < 0.99) return { label:'狂気',    color:'#d4a853' };
+  return         { label:'真の狂人',  color:'#e8c06a' };
+}
 function renderDecision(){
   const dec = $('decision');
   const p = curP();
   if(running && streak > 0){
     dec.classList.add('show');
-    const now = fmtPower(powerOf(p, streak) * runMult);
+    const nowRaw = powerOf(p, streak) * runMult;
+    const now = fmtPower(nowRaw);
     const next = fmtPower(powerOf(p, streak+1) * runMult);
     $('tensionLine').innerHTML =
       '勝てば ' + now + ' → <span style="color:var(--gold)">' + next + '</span>（確率 ' + pct(p) + '）／'
       + '外せば <span class="zero">0</span>（確率 ' + pct(1-p) + '）';
+    // 狂気度 = 到達Float(1 − pⁿ)：確率が許した範囲をどこまで踏み越えたか
+    const surv = Math.pow(p, streak);          // ランダムな挑戦者がここに並ぶ確率
+    const f = 1 - surv;
+    const band = madBand(f);
+    $('madVal').textContent = (f >= 0.99995 ? '0.9999…' : f.toFixed(4)) + '　' + band.label;
+    $('madVal').style.color = band.color;
+    $('madFill').style.width = Math.min(100, f * 100).toFixed(1) + '%';
+    $('madFill').style.background = 'linear-gradient(90deg,' + band.color + '88,' + band.color + ')';
+    const survStr = surv < 0.0001 ? surv.toExponential(1) : pct(surv);
+    $('madNote').textContent = '同率到達 ' + survStr + '｜斬死率は毎回 ' + pct(1 - p) + '（不変・上がるのは賭け金だけ）';
+    // マルチンゲールの告白：1手先の期待戦闘力 = p·next = (1/p)ⁿ·倍率 = now（厳密に一致）
+    $('martLine').innerHTML =
+      '1手先の<b>期待戦闘力 ＝ ' + now + '</b>（やめても同じ — これはマルチンゲール）。'
+      + '<span class="silent">確率の助言はここで尽きる。賭けるのは戦闘力ではなく、欲望だ。</span>';
   } else {
     dec.classList.remove('show');
   }
